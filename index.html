@@ -1,0 +1,1565 @@
+<!-- TSP template version: move/change blocks show only blank columns + Done button -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Planning Puzzles — TSP Template</title>
+
+  <!-- Load the move and change states (kept for structure; not shown in trials) -->
+
+  <script src="TSP_stimuli_b1_copy.js"></script>
+  <script src="TSP_stimuli_b2_copy.js"></script>
+
+  <!-- FileSaver for saving files -->
+  <script src="https://cdn.jsdelivr.net/npm/file-saver"></script>
+
+  <!-- JSZip for bundling puzzle logs + audio into one download -->
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background-color: #f9f9f9;
+      color: #333;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .site-footer {
+      background-color: #f1f1f1;
+      border-top: 1px solid #ccc;
+      padding: 6px 20px;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #555;
+      margin-top: auto; /* pushes footer to bottom */
+      width: 100%;
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 24px;
+      align-items: flex-start;
+      width: 100%;
+      max-width: 1200px;
+    }
+
+    .left-column {
+      max-width: 420px;
+      flex-shrink: 1;
+      background-color: #ffffff;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      /* Remove min-height - let content determine height */
+    }
+
+    .right-column {
+      max-width: 700px;
+      flex-shrink: 1;
+      flex: 2;
+      background-color: #ffffff;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      /* Remove min-height - let content determine height */
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      align-items: center;
+    }
+
+    /* Countdown badge shown during trials */
+    .trial-timer {
+      align-self: flex-end;
+      margin-bottom: 8px;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      border: 1px solid #a5d6a7;   /* soft green border */
+      background: #e8f5e9;         /* soft green bg */
+      color: #1b5e20;              /* deep green text */
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: .5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .trial-timer.warning {
+      border: 1px solid #ffe082;   /* soft amber border */
+      background: #fff8e1;         /* gentle yellow bg */
+      color: #8d6e63;              /* warm brown text */
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    .trial-timer.urgent {
+      background: #ffebee;
+      border-color: #ef9a9a;
+      color: #b71c1c;
+    }
+
+    .reveal-total-btn{
+      background:#42a5f5; color:#fff; border:none; border-radius:6px;
+      padding:6px 10px; cursor:pointer; font-size:0.9rem;
+    }
+    .reveal-total-btn:hover{ background:#42a5f5; }
+
+    /* Optional: dim a frozen row and show a locked button state */
+    .candidate-row.is-frozen { opacity: 0.75; }
+    .reveal-total-btn.locked { cursor: not-allowed; filter: grayscale(1); }
+
+    .final-pick {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid #42a5f5;
+      display: inline-block;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .final-pick:checked::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #42a5f5;
+      transform: translate(-50%, -50%);
+    }
+
+    .rules-text {
+      border-left: 6px solid #42a5f5;
+      font-size: 0.95rem;
+      padding-left: 12px;
+      margin-bottom: 20px;
+    }
+
+    .state-display { /* retained for non-trial screens */
+      font-size: 16px;
+      margin: 12px 0;
+      background-color: #f4faff;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border-left: 4px solid #42a5f5;
+    }
+
+    .done-button {
+      font-size: 14px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      background-color: #42a5f5;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+    }
+    .done-button:hover { background-color: #1e88e5; }
+
+    .center { text-align: center; }
+
+    /* Intro, instructions, error, end screens */
+    #intro-screen, #instructions-screen, #end-screen {
+      max-width: 600px;
+      background-color: #ffffff;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      display: none;
+    }
+
+    #end-screen { text-align: center; }
+
+    #error-message {
+      display: none;
+      max-width: 600px;
+      color: #B00020;
+      background-color: #ffe6e6;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid #F44336;
+    }
+
+    .path-grid{
+      display:grid;
+      grid-template-columns: auto repeat(9, minmax(0,1fr)) auto; /* label | S1 D1 S2 D2 S3 D3 S4 D4 S5 | total */
+      column-gap:12px;
+      row-gap:10px;
+      align-items:center;
+    }
+    .cand-distance-input{
+      width:40px;
+      text-align:center;
+      justify-self:center;
+    }
+
+    /* Add to your <style> */
+    .table-matrix {
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+    .table-matrix caption {
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .table-matrix th, .table-matrix td {
+      border: 1px solid #cfd8dc;
+      padding: 6px 8px;
+      text-align: center;
+    }
+    .table-matrix th {
+      background: #f4faff;
+    }
+    .table-matrix .diag {
+      color: #9e9e9e;
+      background: #fafafa;
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Inline error message (replaces native alerts) -->
+  <div id="error-message"></div>
+
+  <!-- Container for transient voice prompt banner (inserted dynamically) -->
+  <!-- <div id="prompt-message"></div> created by ensurePromptBanner() -->
+
+  <!-- Container for the multi-step intro screens -->
+  <div id="intro-screen"></div>
+
+  <!-- Container for per-block instructions -->
+  <div id="instructions-screen"></div>
+
+  <!-- The main task UI (blank left/right columns during trials) -->
+  <div id="task-ui" class="container" style="display: none;"></div>
+
+  <!-- The final end screen -->
+  <div id="end-screen">
+    <p style="margin-bottom: 24px; font-size: 18px;">
+      The study is now complete.<br>
+      Press any key to receive payment.
+    </p>
+  </div>
+
+  <script type="module">
+    // --------------------------------------
+    // GLOBAL CONFIG
+    // --------------------------------------
+    const N = 1; // N problems per block
+
+    // Randomly sample starting states
+    function getRandomIndices(len, exclude = [], count = 5) {
+      const idxs = [];
+      while (idxs.length < count) {
+        const i = Math.floor(Math.random() * len);
+        if (!idxs.includes(i) && !exclude.includes(i)) idxs.push(i);
+      }
+      return idxs;
+    }
+
+    const moveBlock = Array.from({ length: N }, () => ({}));
+    const changeBlock = Array.from({ length: N }, () => ({}));
+
+    // Decide order of blocks randomly
+    const blocks = ['move','change'];
+    const blockData = { move: moveBlock, change: changeBlock };
+
+    let blockIndex = 0; // which block (0 or 1)
+    let trialIndex = 0; // which trial (0..N-1)
+
+    // Build per-block random prompts (N per block) from the correct stimulus set
+    const movePrompts   = buildPromptsWithConstraints(TSP_STIMULI_B1, N);
+    const changePrompts = buildPromptsWithConstraints(TSP_STIMULI_B2, N);
+    let currentPrompt = null;
+    const promptData = { move: movePrompts, change: changePrompts };
+
+    // puzzle state and logs
+    let currentState = {};
+    let userActions = [];
+    let allProblemLogs = [];
+
+
+    // participant info
+    let participantData = { agreement:'', gender:'', age:'' };
+
+    // problem start timestamp
+    let problemStartTime = null;
+
+
+    // --------------------------------------
+    // FIREBASE CONFIGURATION
+    // --------------------------------------
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    import { getStorage, ref, uploadBytes } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyBmwVKrctSe5uCf_mUk0fX98PU0bfBfZ_k",
+      authDomain: "tsp-experiment-storage.firebaseapp.com",
+      projectId: "tsp-experiment-storage",
+      storageBucket: "tsp-experiment-storage.firebasestorage.app",
+      messagingSenderId: "705114542213",
+      appId: "1:705114542213:web:c08d81670f40055ff5d9ec",
+      measurementId: "G-64EMG37V4C"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const storage = getStorage(app);
+    // --------------------------------------
+    // HELPERS
+    // --------------------------------------
+
+    function showError(msg) {
+      const err = document.getElementById('error-message');
+      err.textContent = msg;
+      err.style.display = 'block';
+      setTimeout(() => err.style.display = 'none', 3000);
+    }
+
+    function renderDistanceTable(hostEl, cities, matrix) {
+      const n = cities.length;
+
+      let html = `<table class="table-matrix" aria-label="Full distance matrix">
+        <thead>
+          <tr>
+            <th></th>${cities.map(c => `<th>${c}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>`;
+
+      for (let i = 0; i < n; i++) {
+        html += `<tr><th scope="row">${cities[i]}</th>`;
+        for (let j = 0; j < n; j++) {
+          const isDiag = i === j;
+          const val = matrix?.[i]?.[j] ?? '';
+          html += `<td class="${isDiag ? 'diag' : ''}">${isDiag ? '—' : val}</td>`;
+          // If you prefer 0s on the diagonal, use:  ${val}  instead of '—'
+        }
+        html += `</tr>`;
+      }
+
+      html += `</tbody></table>`;
+      hostEl.insertAdjacentHTML("beforeend", html);
+    }
+
+    // Build a prompt list with constraints:
+    //  • trial 0: must be 4-city (else relax)
+    //  • trial 1: must be 4- or 5-city (else relax)
+    //  • never allow consecutive 6s (6-6)
+    //  • never allow 5-6-5 or 6-5-6 triplets (relaxed only if necessary)
+    function buildPromptsWithConstraints(stimuli, N) {
+      // copy + shuffle
+      const pool = stimuli.slice();
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      // partition by size
+      const bySize = { 4: [], 5: [], 6: [] };
+      pool.forEach(s => {
+        const n = s?.cities?.length;
+        if (bySize[n]) bySize[n].push(s);
+      });
+
+      const out = [];
+
+      const removeFrom = (size, stim) => {
+        const arr = bySize[size];
+        if (!arr) return;
+        const idx = arr.indexOf(stim);
+        if (idx > -1) arr.splice(idx, 1);
+      };
+
+      const takeOneFromSizes = (sizes) => {
+        const bag = [];
+        sizes.forEach(sz => { if (bySize[sz]?.length) bag.push(...bySize[sz]); });
+        if (!bag.length) return null;
+        const chosen = bag[Math.floor(Math.random() * bag.length)];
+        removeFrom(chosen.cities.length, chosen);
+        return chosen;
+      };
+
+      // slot 0: require 4-city
+      let pick = takeOneFromSizes([4]);
+      if (!pick) { console.warn("No 4-city for first trial; relaxing."); pick = takeOneFromSizes([5,6]); }
+      if (pick) out.push(pick);
+
+      // slot 1: require 4- or 5-city
+      pick = takeOneFromSizes([4,5]);
+      if (!pick) { console.warn("No 4/5-city for second trial; relaxing."); pick = takeOneFromSizes([6]); }
+      if (pick) out.push(pick);
+
+      // remaining slots with adjacency constraints
+      while (out.length < Math.min(N, stimuli.length)) {
+        const prev = out[out.length - 2]?.cities?.length;
+        const last = out[out.length - 1]?.cities?.length;
+
+        let allowed = [4, 5, 6];
+
+        // ban consecutive 6s
+        if (last === 6) allowed = allowed.filter(s => s !== 6);
+
+        // ban triplets 5-6-5 and 6-5-6
+        if (prev === 5 && last === 6) allowed = allowed.filter(s => s !== 5); // blocks 5-6-5
+        if (prev === 6 && last === 5) allowed = allowed.filter(s => s !== 6); // blocks 6-5-6
+
+        // try allowed
+        pick = takeOneFromSizes(allowed);
+
+        // if impossible, relax triplet rule first
+        if (!pick && prev === 5 && last === 6) {
+          console.warn("Relaxing 5-6-5 ban due to pool exhaustion.");
+          pick = takeOneFromSizes([5]);
+        }
+        if (!pick && prev === 6 && last === 5) {
+          console.warn("Relaxing 6-5-6 ban due to pool exhaustion.");
+          pick = takeOneFromSizes([6]);
+        }
+
+        // if still impossible, relax consecutive-6 rule
+        if (!pick && last === 6) {
+          console.warn("Relaxing 6-6 ban due to pool exhaustion.");
+          pick = takeOneFromSizes([6]);
+        }
+
+        // final fallback: anything leftover
+        if (!pick) pick = takeOneFromSizes([4,5,6]);
+        if (!pick) break;
+
+        out.push(pick);
+      }
+
+      return out.slice(0, N);
+    }
+
+    function readCandidatePathsFromUI() {
+      const root = document.getElementById('task-ui');
+      if (!root) return [];
+
+      const rows = root.querySelectorAll('#candidate-list .candidate-row');
+      const result = [];
+
+      rows.forEach((row, i) => {
+        const index = Number(row.dataset.index || i + 1);
+        const selects = row.querySelectorAll('.candidate-select');
+        const path = Array.from(selects, s => (s.value || ""));
+
+        // distance input is created as "...-distance" per row
+        const distEl = row.querySelector("input[id$='-distance']");
+        const totalDistance = distEl && distEl.value ? Number(distEl.value) : null;
+
+        // keep rows that have at least some content (path and/or distance)
+        if (path.some(v => v !== "") || totalDistance !== null) {
+          result.push({ index, path, totalDistance });
+        }
+      });
+
+      return result;
+    }
+
+    function readFinalPickFromUI() {
+      const root = document.getElementById('task-ui');
+      if (!root) return null;
+      const pick = root.querySelector('#candidate-list .final-pick:checked');
+      if (!pick) return null;
+
+      // Find the row that owns this radio
+      const row = pick.closest('.candidate-row');
+      if (!row) return null;
+
+      const selects = row.querySelectorAll('.candidate-select');
+      const path = Array.from(selects, s => (s.value || ""));
+      const distEl = row.querySelector("input[id$='-distance']");
+      const totalDistance = distEl && distEl.value ? Number(distEl.value) : null;
+
+      return {
+        index: Number(row.dataset.index),
+        path,
+        totalDistance
+      };
+    }
+
+    function attachAutoSumForCandidateRow(
+      rowEl,
+      totalSelector = "input[id$='-distance']",
+      inputsSelector = ".cand-distance-input"
+    ) {
+      const total = rowEl.querySelector(totalSelector);
+      const inputs = rowEl.querySelectorAll(inputsSelector);
+      if (!total || inputs.length === 0) return;
+
+      // Ensure the gray "Compute\nSum" button exists (replaces label if present)
+      const wrap = total.closest(".cand-distance-wrap");
+      let revealBtn = wrap && wrap.querySelector(".reveal-total-btn");
+      if (wrap && !revealBtn) {
+        const oldLabel = wrap.querySelector("label");
+        if (oldLabel) oldLabel.remove();
+        revealBtn = document.createElement("button");
+        revealBtn.type = "button";
+        revealBtn.className = "reveal-total-btn";
+        revealBtn.textContent = "Sum";
+        revealBtn.style.whiteSpace = "pre-line"; // render \n as line break
+        revealBtn.setAttribute("aria-controls", total.id || "");
+        wrap.insertBefore(revealBtn, total);
+      }
+
+      // Find (or create) the final-pick radio inside the path label
+      let pick = rowEl.querySelector(".final-pick");
+      if (!pick) {
+        const label = rowEl.querySelector(".path-label");
+        if (label) {
+          label.style.display = "inline-flex";
+          label.style.alignItems = "center";
+          label.style.gap = "8px";
+          pick = document.createElement("input");
+          pick.type = "radio";
+          pick.className = "final-pick";
+          pick.disabled = true;
+          const m = (label.textContent || "").match(/\d+/);
+          pick.value = m ? m[0] : "";
+          pick.setAttribute("aria-label", `Choose ${label.textContent || "this Path"}`);
+          pick.style.display = "none";
+          label.prepend(pick);
+        }
+      }
+      const getFinalPickGroupName = () => {
+        const scope = rowEl.closest("[data-trial-id]") || rowEl.closest("#candidate-list") || document.body;
+        if (!scope.dataset.finalPickGroup) {
+          scope.dataset.finalPickGroup = "finalPick-" + (scope.id || Math.random().toString(36).slice(2));
+        }
+        return scope.dataset.finalPickGroup;
+      };
+      if (pick) pick.name = getFinalPickGroupName();
+      
+      // Prepare total (kept enabled so it can submit)
+      total.readOnly = true;
+      total.placeholder = "—";
+      total.value = "";
+      total.setAttribute("aria-live", "polite");
+
+      const clamp1to10 = (val) => {
+        if (val === "") return "";
+        let n = parseInt(val, 10);
+        if (Number.isNaN(n)) return "";
+        if (n < 1) n = 1;
+        if (n > 10) n = 10;
+        return String(n);
+      };
+
+      const computeSum = () => {
+        let sum = 0, hasAny = false;
+        inputs.forEach(inp => {
+          const n = parseInt(inp.value, 10);
+          if (!Number.isNaN(n)) { sum += n; hasAny = true; }
+        });
+        return hasAny ? String(sum) : "";
+      };
+
+      // --- Your existing completion checks (unchanged) ---
+      const allInputsFilled = () =>
+        Array.from(inputs).every(inp => {
+          const val = inp.value.trim();
+          return val !== "" && !Number.isNaN(parseInt(val, 10));
+        });
+
+      const allSelectsFilled = () => {
+        const selects = rowEl.querySelectorAll("select.candidate-select");
+        if (selects.length === 0) return false;
+        return Array.from(selects).every(sel => sel.value && sel.value.trim() !== "");
+      };
+
+      const allFieldsComplete = () => allSelectsFilled() && allInputsFilled();
+
+      const updateButtonState = () => {
+        if (rowEl.dataset.frozen === "true") return;
+        if (!revealBtn) return;
+        const canCompute = allFieldsComplete();
+        revealBtn.disabled = !canCompute;
+        if (canCompute) {
+          revealBtn.style.background = "#42a5f5";
+          revealBtn.style.cursor = "pointer";
+          revealBtn.style.opacity = "1";
+          revealBtn.title = "Click to compute sum and lock this row";
+        } else {
+          revealBtn.style.background = "#d0d0d0";
+          revealBtn.style.cursor = "not-allowed";
+          revealBtn.style.opacity = "0.6";
+          revealBtn.title = "Fill in all cities and distance values before computing sum";
+        }
+      };
+
+      // Freeze row: reveal radio & keep it enabled; disable the rest
+      const freezeRow = () => {
+        rowEl.dataset.frozen = "true";
+        rowEl.classList.add("is-frozen");
+
+        // Show + enable radio for finalized path
+        if (pick) { pick.style.display = "inline-block"; pick.disabled = false; }
+
+        rowEl.querySelectorAll("input, select, textarea, button").forEach(ctrl => {
+          // keep total (readOnly) and the radio enabled
+          if (ctrl === total || ctrl === pick) return;
+          ctrl.disabled = true;
+          ctrl.setAttribute("aria-disabled", "true");
+        });
+
+        if (revealBtn) {
+          revealBtn.classList.add("locked");
+          revealBtn.textContent = "Sum";
+          revealBtn.setAttribute("aria-pressed", "true");
+          revealBtn.style.background = "#7e7e7e";
+          revealBtn.style.cursor = "not-allowed";
+          revealBtn.style.opacity = "0.75";
+        }
+
+        // Notify outer logic if you want to gate Done/Continue elsewhere
+        rowEl.dispatchEvent(new CustomEvent("rowfrozen", { bubbles: true }));
+      };
+
+      // Sanitize inputs + keep the button state in sync
+      inputs.forEach(inp => {
+        inp.addEventListener("keypress", (e) => { if (!/[0-9]/.test(e.key)) e.preventDefault(); });
+        inp.addEventListener("input", (e) => {
+          const cleaned = e.target.value.replace(/[^\d]/g, "");
+          e.target.value = clamp1to10(cleaned);
+          updateButtonState();
+        });
+        inp.addEventListener("change", (e) => {
+          e.target.value = clamp1to10(e.target.value);
+          updateButtonState();
+        });
+      });
+
+      // Hook up select changes
+      setTimeout(() => {
+        rowEl.querySelectorAll("select.candidate-select").forEach(sel => {
+          sel.addEventListener("change", updateButtonState);
+        });
+        updateButtonState(); // initial state
+      }, 0);
+
+      // Click to compute (only if complete) and then lock
+      if (revealBtn) {
+        revealBtn.addEventListener("click", (e) => {
+          e.preventDefault();
+          if (rowEl.dataset.frozen === "true") return;
+          if (!allFieldsComplete()) return;
+          total.value = computeSum();
+          total.dispatchEvent(new Event("input", { bubbles: true }));
+          freezeRow();
+        }, { once: true });
+      }
+    }
+
+    // ---- Trial timer (4-minute limit) ----
+    let countdownInterval = null;
+    let countdownDeadline = 0;
+    let trialActive = false; // guards against double-ending
+
+    function formatClock(ms) {
+      const total = Math.ceil(ms / 1000);
+      const m = Math.max(0, Math.floor(total / 60));
+      const s = Math.max(0, total % 60);
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    function updateTimerDisplay() {
+      const el = document.getElementById('trial-timer');
+      if (!el) return;
+
+      const remaining = Math.max(0, countdownDeadline - Date.now());
+      el.textContent = formatClock(remaining);
+
+      const secs = Math.ceil(remaining / 1000);
+
+      // urgent beats warning (<=10s)
+      el.classList.toggle('urgent',  secs <= URGENT_THRESHOLD_S);
+      el.classList.toggle('warning', secs >  URGENT_THRESHOLD_S && secs <= WARNING_THRESHOLD_S);
+
+      if (remaining <= 0) {
+        clearTrialTimer();
+        endTrial('timeout');
+      }
+    }
+
+    // Map number of cities to seconds 
+    function getTrialLimitMsFromCities(count) {
+      const secsByCities = { 4: 30, 5: 60, 6: 90 }; // seconds
+      const seconds = secsByCities[count] ?? 15;   // fallback
+      return seconds * 1000;
+    }
+
+    function startTrialTimer(limitMs) {
+      if (typeof limitMs !== 'number') throw new Error('startTrialTimer requires limitMs');
+      clearTrialTimer();
+      countdownDeadline = Date.now() + limitMs;
+
+      const el = document.getElementById('trial-timer');
+      if (el) el.classList.remove('urgent', 'warning');
+
+      updateTimerDisplay();
+      countdownInterval = setInterval(updateTimerDisplay, 250);
+    }
+
+    const WARNING_THRESHOLD_S = 20; // turn yellow at <= 60s
+    const URGENT_THRESHOLD_S  = 10; // turn red at <= 10s
+
+    function clearTrialTimer() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+    }
+
+    // --------------------------------------
+    // AUDIO RECORDING
+    // --------------------------------------
+    let audioStream = null;
+    let recorder = null;
+    const audioChunks = []; // {block, trial, blob}
+
+    async function requestAudioPermission() {
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio:true });
+      } catch (e) {
+        console.error(e);
+        showError("Microphone access is needed to record your responses.");
+      }
+    }
+
+    function startRecording(blockNum, trialNum) {
+      if (!audioStream) return;
+      recorder = new MediaRecorder(audioStream);
+      recorder.ondataavailable = e => {
+        if (e.data.size > 0) audioChunks.push({ block:blockNum, trial:trialNum, blob:e.data });
+      };
+      recorder.start();
+    }
+
+    function stopRecording(cb) {
+      if (!recorder) { cb && cb(); return; }
+      recorder.onstop = () => { cb && cb(); };
+      recorder.stop();
+      recorder = null;
+    }
+
+    // =============================
+    // LIVE VOICE FEEDBACK MODULE (separate from saving recorder)
+
+    function ensurePromptBanner() {
+      let el = document.getElementById("prompt-message");
+      if (!el) {
+        el = document.createElement("div");
+        el.id = "prompt-message";
+        el.style.display = "none";
+        el.style.maxWidth = "600px";
+        el.style.margin = "0 0 20px 0";
+        el.style.background = "#E3F2FD"; // light blue
+        el.style.color = "#0D47A1";      // dark blue text
+        el.style.border = "1px solid #90CAF9";
+        el.style.borderRadius = "8px";
+        el.style.padding = "12px 16px";
+        el.style.textAlign = "center";
+        const anchor = document.querySelector('#error-message');
+        (anchor?.parentNode || document.body).insertBefore(el, anchor?.nextSibling || null);
+      }
+      return el;
+    }
+
+    function showPrompt(msg, ms = 4000) {
+      const el = ensurePromptBanner();
+      el.textContent = msg;
+      el.style.display = "block";
+      clearTimeout(showPrompt._t);
+      showPrompt._t = setTimeout(() => (el.style.display = "none"), ms);
+    }
+
+    // ---- Live voice feedback using Web Audio API AnalyserNode ----
+    const VoiceFeedback = (() => {
+      let ctx = null;
+      let source = null;
+      let analyser = null;
+      let freqData = null;
+      let running = false;
+      let timer = null;
+
+      const cfg = {
+        intervalSec: 20,   // check cadence (seconds)
+        threshold: .0008,  // tune after pilot
+        minHz: 85,
+        maxHz: 255,
+        fftSize: 2048,
+        smoothing: 0.8,
+      };
+
+      let accum = 0;   // accumulated average over frames
+      let frames = 0;  // number of frames accumulated
+      let minBin = 0, maxBin = 0;
+
+      function setupBins(sampleRate, fftSize) {
+        const binHz = sampleRate / fftSize;
+        minBin = Math.floor(cfg.minHz / binHz);
+        maxBin = Math.ceil(cfg.maxHz / binHz);
+      }
+
+      function sampleLoop() {
+        if (!running) return;
+        analyser.getFloatFrequencyData(freqData); // dB values
+        // Convert dB to linear magnitude and average over the speech band
+        let total = 0;
+        for (let i = minBin; i <= maxBin && i < freqData.length; i++) {
+          total += Math.pow(10, freqData[i] / 20);
+        }
+        const avg = total / Math.max(1, (maxBin - minBin + 1));
+        accum += avg;
+        frames += 1;
+        requestAnimationFrame(sampleLoop);
+      }
+
+      async function start() {
+        if (running) return;
+        if (!audioStream) return; // mic not granted yet
+        ctx = new (window.AudioContext || window.webkitAudioContext)();
+        await ctx.resume().catch(()=>{});
+        source = ctx.createMediaStreamSource(audioStream);
+
+        analyser = ctx.createAnalyser();
+        analyser.fftSize = cfg.fftSize;
+        analyser.smoothingTimeConstant = cfg.smoothing;
+
+        freqData = new Float32Array(analyser.frequencyBinCount);
+        source.connect(analyser);
+
+        setupBins(ctx.sampleRate, analyser.fftSize);
+        accum = 0; frames = 0; running = true;
+        sampleLoop();
+
+        timer = setInterval(() => {
+          if (!running) return;
+          const avgActivity = frames ? (accum / frames) : 0;
+          if (avgActivity < cfg.threshold) {
+            showPrompt("Please keep speaking your thoughts aloud.");
+          }
+          console.debug('avgActivity', avgActivity.toFixed(5));
+          accum = 0; frames = 0; // reset window
+        }, cfg.intervalSec * 1000);
+      }
+
+      async function stop() {
+        running = false;
+        clearInterval(timer);
+        try { source && source.disconnect(); } catch (_) {}
+        try { ctx && (await ctx.close()); } catch (_) {}
+        ctx = source = analyser = null;
+        freqData = null;
+        accum = 0; frames = 0;
+      }
+
+      function setConfig(overrides) { Object.assign(cfg, overrides || {}); }
+      return { start, stop, setConfig, cfg };
+    })();
+
+
+    // --------------------------------------
+    // INTRO SCREENS
+    // --------------------------------------
+    let introIndex = 0;
+    const introScreens = [
+      // 0
+      `
+        <p>In this study, you will solve problems involving identifying the shortest path between cities.</p>
+        <p>Only anonymous data without any personal information will be stored for research purposes.</p>
+        <p>Audio will also be recorded while you solve the problems.</p>
+        <p>The whole study will take no longer than 1 hour to complete.</p>
+        <p>If you agree to participate in the study, please respond by typing something in the box provided below.</p>
+        <p>Otherwise, please close the study window.</p>
+        <p><input type="text" id="agreeInput" style="width: 95%;" placeholder="Type your response here..."></p>
+      `,
+      // 1
+      `
+        <p>Please provide the following information.</p>
+        <p>Gender:</p>
+        <p>
+          <select id="genderSelect" style="width: 100%;">
+            <option value="" disabled selected hidden>Select...</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Nonbinary">Nonbinary</option>
+            <option value="Other">Other (please specify)</option>
+          </select>
+        </p>
+        <p id="otherGenderWrapper" style="display:none;">
+          <input type="text" id="otherGenderInput" style="width: 95%;" placeholder="Please specify..." />
+        </p>
+        <p>Age:</p>
+        <p><input type="number" id="ageInput" style="width: 95%;" placeholder="Type your age here..." /></p>
+      `,
+      // 2
+      `
+        <p>Please turn off any music or potential sources of distraction.</p>
+        <p>The experiment will switch to full screen mode when you press the button below.</p>
+        <p>Please remain in full screen mode until the experiment is complete.</p>
+        <p>Microphone access will also be requested for audio recording.</p>
+      `,
+      // 3
+      `
+        <p>The experiment will consist of two blocks with the same types of problems. Each block will contain ${N} problems.</p>
+        <p>Before the first block, you will be presented with instructions.</p>
+        <p>You will have a brief period to rest in between the first and second blocks.</p>
+        <p>Please press 'Next' to see the instructions for Block #1.</p>
+      `
+    ];
+
+    function startIntro() {
+      introIndex = 0;
+      showIntroScreen();
+    }
+
+    function showIntroScreen() {
+      const introDiv = document.getElementById('intro-screen');
+      introDiv.innerHTML = introScreens[introIndex] + `
+        <div style="text-align: center; margin-top: 24px;">
+          <button id="introNextBtn" style="padding: 10px 20px;">Next</button>
+        </div>
+      `;
+      introDiv.style.display = 'block';
+
+      document.getElementById('introNextBtn').addEventListener('click', handleIntroNext);
+
+      if (introIndex === 1) {
+        const sel = document.getElementById('genderSelect');
+        sel.addEventListener('change', () => {
+          document.getElementById('otherGenderWrapper').style.display =
+            sel.value === 'Other' ? 'block' : 'none';
+        });
+      }
+    }
+
+    async function handleIntroNext() {
+      if (introIndex === 0) {
+        const val = document.getElementById('agreeInput').value.trim();
+        if (!val) { showError("Please type something to proceed."); return; }
+        participantData.agreement = val;
+
+      } else if (introIndex === 1) {
+        const gSel = document.getElementById('genderSelect');
+        const age = document.getElementById('ageInput').value.trim();
+        if (!gSel.value || !age) {
+          showError("Please select a gender and enter your age."); return; }
+        if (gSel.value === 'Other') {
+          const spec = document.getElementById('otherGenderInput').value.trim();
+          if (!spec) { showError("Please specify your gender."); return; }
+          participantData.gender = spec;
+        } else {
+          participantData.gender = gSel.value;
+        }
+        participantData.age = age;
+
+      } else if (introIndex === 2) {
+        if (document.body.requestFullscreen) document.body.requestFullscreen();
+        else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+        await requestAudioPermission();
+      }
+
+      introIndex++;
+      if (introIndex < introScreens.length) {
+        showIntroScreen();
+      } else {
+        document.getElementById('intro-screen').style.display = 'none';
+        loadBlock();
+      }
+    }
+
+    // --------------------------------------
+    // PER-BLOCK INSTRUCTIONS
+    // --------------------------------------
+    function loadBlock() {
+      const blockNum = blockIndex + 1;
+      const blockType = blocks[blockIndex];
+      if (blockType === 'move') showMoveInstructions(blockNum);
+      else showChangeInstructions(blockNum);
+    }
+
+    function showMoveInstructions(blockNumber) {
+      const inst = document.getElementById('instructions-screen');
+      inst.style.display = 'block';
+      inst.innerHTML = `
+        <h2>Experiment Instructions (for both blocks)</h2>
+        <p>In this experiment, you will be presented with sets of cities and their distances. Your goal is to find the shortest possible route that visits each city exactly once and returns to the original city.</p>
+
+        <p style="font-size:1.15rem;"><strong>Importantly, as you are solving the problems, try to say out loud everything that goes through your mind.</strong></p>
+        <p style="font-size:1.15rem;"><strong>If you are silent for a long period of time, we will send you a reminder to speak your thoughts aloud.</strong></p>
+
+        <p>There will be ${N} problems in each block.</p>
+        <div style="text-align:center;margin-top:24px;">
+          <button id="begin-block-btn" style="padding:10px 20px;">Continue to Practice Trial</button>
+        </div>
+      `;
+      document.getElementById('begin-block-btn').addEventListener('click', () => {
+        showMoveRuleCheck(blockNumber);
+      });
+    }
+
+    // Rule check (retained)
+    function showMoveRuleCheck(blockNumber) {
+      // Hide the instructions panel and show the main task container
+      const inst = document.getElementById('instructions-screen');
+      inst.style.display = 'none';
+
+      const container = document.getElementById('task-ui');
+      container.style.display = 'flex';
+
+      // Left-column text (practice-specific)
+      const leftHTML = `
+        <div class="rules-text">
+          <h3>Example Trial (Practice)</h3>
+          <p>Read the Instructions below and practice creating paths using the drop-down menus as you search for the shortest route.</p>
+          <h3>Instructions</h3>
+          <p>Your goal is to find the shortest possible route that visits each city exactly once and returns to the original city.</p>
+	        <p>Test out paths by 1. selecting cities from drop-down menus, and 2. Entering the distances between cities below them. 
+          <p>You can view the total distance for a path by clicking the ‘Sum’ button. Once you press the Sum button, the path and its total distance are frozen and added to the ‘scratchpad’. Then, <strong>you can make a new path</strong> by clicking the button in the top right. You will be able to see all paths you try. 
+          <p>To indicate your final response, select the shortest path (by selecting one of the Path buttons) and click 'Continue'.</p>
+          <p>Once you feel comfortable with the controls and have selected city as the Final Path, press <strong>Continue</strong> to begin the experiment.</p>
+        </div>
+      `;
+
+      // Shared options (same as the experimental blocks)
+      const cityOptions = ['City A','City B','City C']
+        .map(c => `<option value="${c}">${c}</option>`).join('');
+      const blank = `<option value="" selected disabled hidden></option>`;
+
+      // Candidate Paths section
+      const candidateSectionHTML = `
+        <div id="candidate-section" class="candidate-section" style="margin-bottom:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-weight:600;">
+            <h4 style="margin:0;">Select Paths and Enter Distances (sums are computed)</h4>
+            <button id="add-candidate" type="button" class="add-candidate">+ Click to add a Path</button>
+          </div>
+          <div id="candidate-list" class="candidate-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+      `;
+
+      // Lay out the two columns just like the experimental blocks
+      container.innerHTML = `
+        <div class="left-column">${leftHTML}</div>
+        <div class="right-column">
+          ${candidateSectionHTML}
+          <div id="completion-warning" style="margin:8px 0; font-size:0.9rem; color:#42a5f5;"></div>
+          <div class="center">
+            <button id="move-check-continue-btn" class="done-button" disabled>Continue (Begin Experiment)</button>
+          </div>
+        </div>
+      `;
+
+      // Practice distance matrix (4 cities), rendered like the trial tables
+      const practiceCities = ['City A', 'City B', 'City C'];
+      const practiceMatrix = [[0, 2, 7], [2, 0, 6], [7, 6, 0]];
+
+      // Append under the left-column instructions
+      const leftCol = container.querySelector('.left-column');
+      const host = document.createElement('div');
+      host.id = 'practice-distance-table';
+      host.style.marginTop = '12px';
+
+      const title = document.createElement('h4');
+      title.textContent = 'Distances Between Cities:';
+      title.style.margin = '0 0 8px 0';   // match styling of other section titles
+      leftCol.appendChild(title);
+
+      leftCol.appendChild(host);
+
+      // Uses the same formatting/indexing as move/change blocks
+      renderDistanceTable(host, practiceCities, practiceMatrix);
+
+      // Enforce 1–10 on the four distance inputs
+      const clamp1to10 = (val) => {
+        if (val === '') return '';
+        let n = parseInt(val, 10);
+        if (Number.isNaN(n)) return '';
+        if (n < 1) n = 1;
+        if (n > 10) n = 10;
+        return String(n);
+      };
+
+      // ---------- Candidate Paths logic (same behavior as trials) ----------
+      const list = container.querySelector('#candidate-list');
+      let candidateCount = 0;
+
+      function addCandidatePath() {
+        candidateCount += 1;
+        const row = document.createElement('div');
+        row.className = 'candidate-row';
+        row.dataset.index = String(candidateCount);
+
+        // 5 selects (City 1..4 + return)
+        const topSelects = [1,2,3,4].map(i => {
+          if (i === 1 || i === 4) {
+            // Force City A, non-editable
+            return `<select id="cand-${candidateCount}-${i}" class="candidate-select" 
+                      style="grid-column:${2*i}; width:60px;" disabled>
+                      <option value="City A" selected>City A</option>
+                    </select>`;
+          } else {
+            // Middle cities remain editable
+            return `<select id="cand-${candidateCount}-${i}" class="candidate-select" 
+                      style="grid-column:${2*i}; width:60px;">${blank}${cityOptions}</select>`;
+          }
+        }).join('');
+
+        const bottomDistances = [1,2,3].map(i =>
+          `<input id="cand-${candidateCount}-d${i}" class="cand-distance-input" maxlength="2" style="grid-column:${2*i+1}; grid-row:2;" />`
+        ).join('');
+
+        row.innerHTML = `
+          <div class="path-grid" style="width:100%;">
+            <span class="path-label"
+                  style="grid-column:1; grid-row:1; font-weight:600; display:inline-flex; align-items:center; gap:8px;">
+              <input type="radio" class="final-pick" value="${candidateCount}"
+                    disabled style="display:none;" aria-label="Choose Path ${candidateCount}" />
+              Path ${candidateCount}
+            </span>
+            ${topSelects}
+            <div class="cand-distance-wrap" style="grid-column:11; display:flex; flex-direction:column; align-items:flex-end; gap:4px; justify-self:end;">
+              <label for="cand-${candidateCount}-distance" style="font-weight:600;">Sum</label>
+              <input id="cand-${candidateCount}-distance"
+                    inputmode="numeric"
+                    pattern="[1-9][0-9]*"
+                    aria-label="Candidate Total Distance (auto from segment distances)"
+                    placeholder="auto"
+                    style="width:20px; padding:6px 8px;" />
+            </div>
+
+            <span class="dist-label" style="grid-column:1; grid-row:2; font-weight:600;">Distances</span>
+            ${bottomDistances}
+          </div>
+        `;
+
+        list.appendChild(row);
+        attachAutoSumForCandidateRow(row);
+      }
+
+      container.querySelector('#add-candidate').addEventListener('click', addCandidatePath);
+      // Start with one candidate row
+      addCandidatePath();
+
+      // ---------- Gating for Continue (must choose a final-pick) ----------
+      function finalPickSelected() {
+        return !!container.querySelector('#candidate-section .final-pick:checked');
+      }
+
+      function updateContinueState() {
+        const ok = finalPickSelected();
+        const warn = container.querySelector('#completion-warning');
+        container.querySelector('#move-check-continue-btn').disabled = !ok;
+        warn.textContent = ok ? '' :
+          'Please choose your final path before continuing.';
+      }
+
+      // Watch any interaction inside candidate area (includes radio clicks)
+      const candSection = container.querySelector('#candidate-section');
+      ['input','change','click'].forEach(evt =>
+        candSection.addEventListener(evt, updateContinueState)
+      );
+      updateContinueState();
+
+      const continueBtn = container.querySelector('#move-check-continue-btn');
+      continueBtn.addEventListener('click', () => {
+        if (!finalPickSelected()) { showError('Select your final path to continue.'); return; }
+        startBlock(); // proceed to the first real trial
+      });
+    }
+
+
+
+    function showChangeInstructions(blockNumber) {
+      const inst = document.getElementById('instructions-screen');
+      inst.style.display = 'block';
+      inst.innerHTML = `
+        <h2>Please take a brief rest before continuing to Block #${blockNumber}</h2>
+        <p>In this block, you will continue solving shortest-path style problems.</p>
+        <p>As you solve the problems, please continue to describe your thought process out loud.</p>
+        <p>There will be ${N} problems in this block.</p>
+        <div style="text-align:center;margin-top:24px;">
+          <button id="begin-block-btn" style="padding:10px 20px;">Begin block</button>
+        </div>
+      `;
+      document.getElementById('begin-block-btn').addEventListener('click', () => {
+        inst.style.display = 'none';
+        startBlock();
+      });
+    }
+
+    // --------------------------------------
+    // BLOCK & TRIAL FLOW
+    // --------------------------------------
+    function startBlock() {
+      trialIndex = 0;
+      document.getElementById('task-ui').style.display = 'flex';
+      loadTrial();
+    }
+
+    function loadTrial() {
+      const blockNum = blockIndex + 1;
+      const problemNum = trialIndex + 1;
+      const type = blocks[blockIndex];
+      currentPrompt = (type === 'move' ? movePrompts : changePrompts)[trialIndex];
+      currentState = structuredClone(blockData[type][trialIndex]);
+      userActions = [];
+      problemStartTime = Date.now();
+      startRecording(blockNum, problemNum);
+      VoiceFeedback.start();
+      const numCities = (currentPrompt?.cities || []).length;
+      const limitMs   = getTrialLimitMsFromCities(numCities);
+      renderUI(type, limitMs);
+      trialActive = true;            // mark trial as running
+      startTrialTimer(limitMs);  // start city-based countdown
+    }
+
+    // --------------------------------------
+    // RENDERING — MOVE/CHANGE BLOCKS
+    // --------------------------------------
+    function renderUI(type, limitMs) {
+    const container = document.getElementById('task-ui');
+
+    // Left column instructions (unchanged)
+    // Left column = instructions + the selected problem prompt (HTML)
+    const instructionsHTML = `
+      <div class="rules-text">
+        <h3>Instructions</h3>
+        <p>Your goal is to find the shortest possible route that visits each city exactly once and returns to the original city.</p>
+        <p>Report the shortest path by selecting cities from drop-down menus and entering distances between cities below.</p>
+        <p>You can view the total distance for a path by clicking the ‘Sum’ button</p>
+      </div>
+      <div id="problem-prompt" style="margin-top:12px;">${currentPrompt?.prompt || ''}
+      </div>
+    `;    
+
+    // Shared options (use stimulus cities if present; default to 5)
+    const cities = currentPrompt?.cities || ['City A', 'City B', 'City C','City D','City E'];
+    const cityOptions = cities.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    const blank = `<option value="" selected disabled hidden></option>`;
+
+
+    // Small helper to render a run of <select> elements
+    function renderPathSelects(prefix, cssClass, count) {
+      return Array.from({ length: count }, (_, i) =>
+        `<select id="${prefix}-${i + 1}" class="${cssClass}">${blank}${cityOptions}</select>`
+      ).join('');
+    }
+
+    // Candidate Paths section + button
+    const candidateSectionHTML = `
+      <div id="candidate-section" class="candidate-section" style="margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h4 style="margin:0;">Select Paths and Enter Distances (sums are computed)</h4>
+          <button id="add-candidate" type="button" class="add-candidate">+ Click to add a Path</button>
+        </div>
+        <div id="candidate-list" class="candidate-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      </div>
+    `;
+
+    // How many stops to render (N cities + return to start)
+    const numCities = cities.length;
+    const numStops  = numCities + 1;
+
+    // Build a responsive grid: [label] | S1 D1 S2 D2 ... S(N) D(N) S(N+1) | [total]
+    const midCols = 2 * numStops - 1; // alternating selects & distance inputs
+
+
+    // Render columns
+    container.innerHTML = `
+      <div class="left-column">${instructionsHTML}</div>
+      <div class="right-column">
+        <div id="trial-timer" class="trial-timer" role="timer" aria-live="polite" title="Time remaining">
+          ${formatClock(limitMs)}
+        </div>
+        ${candidateSectionHTML}
+        <div id="completion-warning" style="margin:8px 0; font-size:0.9rem; color:#42a5f5;"></div>
+        <div class="center">
+          <button id="done-button" class="done-button" disabled>Continue</button>
+        </div>
+      </div>
+    `;
+
+    // Append distance table under the prompt text (left column)
+    const promptEl = container.querySelector('#problem-prompt');
+    if (promptEl && currentPrompt?.matrix) {
+      renderDistanceTable(promptEl, cities, currentPrompt.matrix);
+    }
+    
+    const doneBtn = container.querySelector('#done-button');
+    doneBtn.addEventListener('click', () => {
+      if (!finalPickSelected()) { showError('Select your final path to continue.'); return; }
+      endTrial('user');
+    });
+
+    // ---------- Done gating (must choose a final-pick) ----------
+    function finalPickSelected() {
+      return !!container.querySelector('#candidate-section .final-pick:checked');
+    }
+
+    function updateDoneState() {
+      const ok = finalPickSelected();
+      const warn = container.querySelector('#completion-warning');
+      container.querySelector('#done-button').disabled = !ok;
+      warn.textContent = ok ? '' :
+        'Please choose your final path before continuing.';
+    }
+
+    const candSection = container.querySelector('#candidate-section');
+    ['input','change','click'].forEach(evt =>
+      candSection.addEventListener(evt, updateDoneState)
+    );
+    updateDoneState();
+
+
+    // ---------- Candidate Paths logic ----------
+    const list = container.querySelector('#candidate-list');
+    let candidateCount = 0;
+
+    function addCandidatePath() {
+      candidateCount += 1;
+
+      // Same grid structure as Final Path: label | S D S D ... S | total
+      const midCols = 2 * numStops - 1;
+      const candColsCSS = `auto repeat(${midCols}, minmax(0,1fr)) auto`;
+
+
+      const topSelects = Array.from({ length: numStops }, (_, i) => {
+        const col = 2 * (i + 1);
+        if (i === 0 || i === numStops - 1) {
+          return `<select id="cand-${candidateCount}-${i+1}" class="candidate-select" 
+                    style="grid-column:${col}; width:50px;" disabled>
+                    <option value="City A" selected>City A</option>
+                  </select>`;
+        } else {
+          return `<select id="cand-${candidateCount}-${i+1}" class="candidate-select" 
+                    style="grid-column:${col}; width:50px;">
+                    ${blank}${cityOptions}
+                  </select>`;
+                }
+      }).join('');
+
+
+      const bottomDistances = Array.from({ length: numStops - 1 }, (_, i) => {
+        const col = 2 * (i + 1) + 1;
+        return `<input class="cand-distance-input" maxlength="2"
+                      style="grid-column:${col}; grid-row:2; justify-self:center; width:35px; text-align:center;" />`;
+      }).join('');
+
+      const row = document.createElement('div');
+      row.className = 'candidate-row';
+      row.dataset.index = String(candidateCount);
+      row.innerHTML = `
+        <div class="path-grid" style="
+          display:grid;
+          grid-template-columns:${candColsCSS};
+          column-gap:4px; row-gap:8px; align-items:center; width:100%;
+        ">
+          <span class="path-label"
+                style="grid-column:1; grid-row:1; font-weight:600; display:inline-flex; align-items:center; gap:6px; font-size:0.9rem;">
+            <input type="radio" class="final-pick" value="${candidateCount}"
+                  disabled style="display:none;" aria-label="Choose Path ${candidateCount}" />
+            Path ${candidateCount}
+          </span>
+          ${topSelects}
+          <div class="cand-distance-wrap"
+              style="grid-column:${2 * numStops + 1}; display:flex; flex-direction:column; align-items:flex-end; gap:3px; justify-self:end;">
+            <label for="cand-${candidateCount}-distance" style="font-weight:600; font-size:0.85rem;">Sum</label>
+            <input id="cand-${candidateCount}-distance" inputmode="numeric" pattern="[1-9][0-9]*" placeholder="auto"
+                  style="width:35px; padding:4px 6px; font-size:0.9rem;" />
+          </div>
+
+          <span class="dist-label" style="grid-column:1; grid-row:2; font-weight:600; font-size:0.85rem;">Distances</span>
+          ${bottomDistances}
+        </div>
+      `;
+
+      list.appendChild(row);
+
+      // Auto-sum for this candidate row
+      attachAutoSumForCandidateRow(
+        row,
+        `#cand-${candidateCount}-distance`,
+        `.cand-distance-input`
+      );
+    }
+
+    // --- Wire up the Add Candidate button once, after the function is defined ---
+    const addBtn = container.querySelector('#add-candidate');
+    if (addBtn) {
+      addBtn.addEventListener('click', addCandidatePath);
+      addCandidatePath(); // start with one blank candidate row
+    }
+  }
+
+    // --------------------------------------
+    // END OF TRIAL / BLOCK / STUDY
+    // --------------------------------------
+    function endTrial(reason = 'user') {
+      if (!trialActive) return; // prevent double-firing
+      trialActive = false;
+      clearTrialTimer();
+
+      stopRecording(async () => {
+        await VoiceFeedback.stop();
+
+        readCandidatePathsFromUI().forEach(c => {
+          userActions.push({
+            type: 'candidate-path',
+            index: c.index,
+            path: c.path,
+            totalDistance: c.totalDistance,
+            capturedAt: Date.now()
+          });
+        });
+
+        // NEW: Save which candidate was chosen as final pick
+        const finalPick = readFinalPickFromUI();
+        if (finalPick) {
+          userActions.push({
+            type: 'final-pick',
+            index: finalPick.index,
+            path: finalPick.path,
+            totalDistance: finalPick.totalDistance,
+            capturedAt: Date.now()
+          });
+        }
+        
+        const type = blocks[blockIndex];
+        allProblemLogs.push({
+          blockType: type,
+          trialIndex: trialIndex + 1,
+          promptId: currentPrompt?.id || null,
+          actions: userActions,
+          startTime: problemStartTime,
+          endTime: Date.now(),
+          endedBy: reason            // <-- add this line
+        });
+
+        trialIndex++;
+        if (trialIndex < N) loadTrial();
+        else {
+          blockIndex++;
+          if (blockIndex < 2) {
+            document.getElementById('task-ui').style.display = 'none';
+            loadBlock();
+          } else {
+            finishStudy();
+          }
+        }
+      });
+    }
+
+
+    async function finishStudy() {
+      if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+      document.getElementById('task-ui').style.display = 'none';
+
+      const end = document.getElementById('end-screen');
+      const puzzleData = { participantData, puzzleLogs: allProblemLogs };
+      const timestamp = Date.now();
+      const participantId = `P_${timestamp}_${Math.random().toString(36).substr(2, 9)}`;
+
+      try {
+        // Save to Firebase
+        try {
+          // 1. Upload audio files to Storage
+          for (const {block, trial, blob} of audioChunks) {
+            const audioFileName = `audio/${participantId}/block${block}_problem${trial}.webm`;
+            const audioRef = ref(storage, audioFileName);
+            await uploadBytes(audioRef, blob);
+          }
+
+          // 2. Save experiment data to Firestore
+          const experimentData = {
+            participantId,
+            timestamp: serverTimestamp(),
+            clientTimestamp: timestamp,
+            participantData,
+            puzzleLogs: allProblemLogs,
+            audioFileCount: audioChunks.length,
+            userAgent: navigator.userAgent
+          };
+
+          const docRef = await addDoc(collection(db, 'experiments'), experimentData);
+          console.log('Data saved to Firebase with ID:', docRef.id);
+
+        } catch (firebaseError) {
+          console.error('Firebase save failed:', firebaseError);
+          showError('Could not save to Firebase; will save locally instead.');
+        }
+
+        // Always create local ZIP as backup
+        const zip = new JSZip();
+        zip.file("puzzle_data.json", JSON.stringify(puzzleData, null, 2));
+        audioChunks.forEach(({ block, trial, blob }) => {
+          zip.file(`block${block}_problem${trial}.webm`, blob);
+        });
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        saveAs(zipBlob, "combined_task_data_with_audio.zip");
+
+      } catch (err) {
+        console.error('Error in finishStudy:', err);
+        showError('Some data saving failed, but study is complete.');
+      } finally {
+        // Always show end screen
+        end.style.display = 'block';
+        end.setAttribute('tabindex', '-1');
+        end.focus();
+        document.addEventListener('keydown', onEndScreenKey, { once: true });
+      }
+    }
+
+    // Replace your onEndScreenKey with this version
+    function onEndScreenKey() {
+      document.removeEventListener('keydown', onEndScreenKey);
+      const end = document.getElementById('end-screen');
+      end.innerHTML = `
+        <p style="margin-bottom:16px; font-size:18px;">
+          User pressed a key on end screen—trigger payment logic here!
+        </p>
+        <p style="font-size:14px; opacity:.8;">
+          (This is where you’d redirect to your completion URL or call your payment API.)
+        </p>
+      `;
+      // e.g. window.location.href = 'https://your-completion-url';
+    }
+
+    // --------------------------------------
+    // START
+    // --------------------------------------
+    startIntro();
+  </script>
+  <footer class="site-footer">
+    <div class="footer-content">
+      <a href="https://support.microsoft.com/contactus">Contact Us</a>
+      <a href="https://go.microsoft.com/fwlink/?LinkId=521839">Privacy & Cookies</a>
+      <a href="https://go.microsoft.com/fwlink/?LinkID=246338">Terms of Use</a>
+      <a href="https://go.microsoft.com/fwlink/?linkid=2196228%20">Trademarks</a>
+      <span>© 2025 Microsoft</span>
+    </div>
+  </footer>
+</body>
+</html>
